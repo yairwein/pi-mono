@@ -293,12 +293,12 @@ export const streamSimpleGoogle: StreamFunction<"google-generative-ai", SimpleSt
 	const effort = clampReasoning(options.reasoning)!;
 	const googleModel = model as Model<"google-generative-ai">;
 
-	if (isGemini3ProModel(googleModel) || isGemini3FlashModel(googleModel)) {
+	if (isGemini3ProModel(googleModel) || isGemini3FlashModel(googleModel) || isGemma4Model(googleModel)) {
 		return streamGoogle(model, context, {
 			...base,
 			thinking: {
 				enabled: true,
-				level: getGemini3ThinkingLevel(effort, googleModel),
+				level: getThinkingLevel(effort, googleModel),
 			},
 		} satisfies GoogleOptions);
 	}
@@ -402,6 +402,11 @@ function isGemini3FlashModel(model: Model<"google-generative-ai">): boolean {
 	return /gemini-3(?:\.\d+)?-flash/.test(model.id.toLowerCase());
 }
 
+function isGemma4Model(model: Model<"google-generative-ai">): boolean {
+	// Gemma 4 models use thinkingLevel (like Gemini 3), not thinkingBudget.
+	return /gemma-?4/.test(model.id.toLowerCase());
+}
+
 function getDisabledThinkingConfig(model: Model<"google-generative-ai">): ThinkingConfig {
 	// Google docs: Gemini 3.1 Pro cannot disable thinking, and Gemini 3 Flash / Flash-Lite
 	// do not support full thinking-off either. For Gemini 3 models, use the lowest supported
@@ -417,15 +422,23 @@ function getDisabledThinkingConfig(model: Model<"google-generative-ai">): Thinki
 	return { thinkingBudget: 0 };
 }
 
-function getGemini3ThinkingLevel(
-	effort: ClampedThinkingLevel,
-	model: Model<"google-generative-ai">,
-): GoogleThinkingLevel {
+function getThinkingLevel(effort: ClampedThinkingLevel, model: Model<"google-generative-ai">): GoogleThinkingLevel {
 	if (isGemini3ProModel(model)) {
 		switch (effort) {
 			case "minimal":
 			case "low":
 				return "LOW";
+			case "medium":
+			case "high":
+				return "HIGH";
+		}
+	}
+	// Gemma 4 only supports MINIMAL and HIGH thinking levels.
+	if (isGemma4Model(model)) {
+		switch (effort) {
+			case "minimal":
+			case "low":
+				return "MINIMAL";
 			case "medium":
 			case "high":
 				return "HIGH";
